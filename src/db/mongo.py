@@ -1,7 +1,7 @@
-# from pymongo import MongoClient
 from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 from datetime import datetime
+import uuid
 import os
 
 # Loading environment variables from .envfile
@@ -32,28 +32,39 @@ async def get_database_and_collection(client, db_name, collection_name):
         
     return db[collection_name]
 
-logs_collection = None
+producer_logs_collection = None
+consumer_logs_collection = None
 
-async def initalize_logs_collection(mongo_collection_name):
-    global logs_collection
-    logs_collection = await get_database_and_collection(client, mongo_db_name, mongo_collection_name)
+async def get_producer_collection():
+    global producer_logs_collection
+    producer_logs_collection = await get_database_and_collection(client, mongo_db_name, mongo_collection_producer_name)
+    return producer_logs_collection
 
-async def log_producer_data(collection, data, timestamp):
+async def get_consumer_collection():
+    global consumer_logs_collection
+    consumer_logs_collection = await get_database_and_collection(client, mongo_db_name, mongo_collection_consumer_name)
+    return consumer_logs_collection
+
+async def unique_id_exists(collection, unique_id):
+    count = await collection.count_documents({"_id": unique_id})
+    return count > 0
+
+async def generate_unique_id(collection):
+    while True:
+        unique_id = str(uuid.uuid4())
+        if not await unique_id_exists(collection, unique_id):
+            return unique_id
+
+async def log_producer_data(collection, unique_id, timestamp):
     await collection.insert_one({
-        "data": data,
-        "timestamp": timestamp
+        "_id": unique_id,
+        "producer_timestamp": timestamp
     })
 
-def create_log_entry(request, review_text, status, error_details=None):
-    log_entry = {
-        "client": request.client.host,
-        "review": review_text,
-        "path": request.url.path,
-        "method": request.method,
-        "headers": dict(request.headers),
-        "status": status,
-        "timestamp": datetime.utcnow().isoformat()
-    }
-    if error_details:
-        log_entry["error_details"] = error_details
-    return log_entry
+async def log_consumer_data(collection, review, prediction, consumer_timestamp, unique_id):
+    await collection.insert_one({
+        "_id": unique_id,
+        "review": review,
+        "prediction": prediction,
+        "consumer_timestamp": consumer_timestamp
+    })

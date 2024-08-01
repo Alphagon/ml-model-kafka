@@ -1,6 +1,9 @@
 from kafka import KafkaConsumer
-import json
+import asyncio
+from datetime import datetime
+from db.mongo import get_consumer_collection, log_consumer_data
 from services import make_predictions
+import json
 
 consumer = KafkaConsumer(
     'real-time-data',
@@ -8,12 +11,16 @@ consumer = KafkaConsumer(
     value_deserializer=lambda x: json.loads(x.decode('utf-8'))
 )
 
-def process_data():
+async def process_data():
+    collection = await get_consumer_collection()
     for message in consumer:
         data = message.value
         review = data['review']
+        unique_id = data['unique_id']
+        consumer_timestamp = datetime.utcnow().isoformat()
         prediction = make_predictions(review)
-        print(f"Review: {review}, Prediction: {prediction}")
+        await log_consumer_data(collection, review, prediction, consumer_timestamp, unique_id)
+        # print(f"Review: {review}, Prediction: {prediction}, Producer Timestamp: {producer_timestamp}, Consumer Timestamp: {consumer_timestamp}, Unique ID: {unique_id}")
 
 if __name__ == "__main__":
-    process_data()
+    asyncio.run(process_data())
