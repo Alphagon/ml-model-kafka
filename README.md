@@ -50,7 +50,7 @@ volumes:
 
 Build the docker using the following command - `sudo docker-compose up --build`
 
-Once the build is complete check if all the images are built properly using the following command - `sudo docker ps`.
+Once the build is complete check if all the images are built properly using the following command - `sudo docker ps`
 You should find three images up and running [Kafka, Zookeeper, and Mongo]
 
 Next create a listener for kafka using the following command
@@ -58,3 +58,59 @@ Next create a listener for kafka using the following command
 docker exec -it <kafka_container_id> /usr/bin/kafka-topics --create --topic real-time-data --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1
 ```
 Replace the kafka_container_id with your container ID and the topic name is "real-time-data"
+
+Now the system is read to genearte dummy data and run predictions on them.
+
+### Creating producer and Consumer Scripts
+Create both producer and consumer scripts, you can refer to them in the attached file.
+
+##### producer.py -
+The producer script reads reviews from a CSV file, generates unique IDs and timestamps for each review, and logs this data to a MongoDB collection. It sends the reviews to a Kafka topic in random batches with delays. The output is real-time review data messages sent to Kafka.
+
+##### consumer.py - 
+The consumer script listens to a Kafka topic for real-time review data messages, deserializes the messages, and processes each review by making predictions. It logs the review, prediction, and timestamps to a MongoDB collection. The output is the logging of processed data with predictions and timestamps.
+
+To run the both producer and consumer scripts simultaneously create a bash file to automate it
+```
+#!/bin/bash
+
+source ~/home/yravi/Documents/onelab/onelab/bin/activate
+
+python3 src/producer.py &
+producer_pid=$!         # Get the PID of the producer
+
+python3 src/consumer.py &
+consumer_pid=$!         # Get the PID of the consumer
+
+# Function to kill the processes
+cleanup() {
+    echo "Killing producer and consumer..."
+    kill $producer_pid $consumer_pid
+    exit
+}
+
+# Trap SIGINT (Ctrl + C) and call cleanup
+trap cleanup SIGINT
+
+# Wait for both processes to finish
+wait
+
+echo "Both producer and consumer have completed."
+```
+
+Using the command `bash kafka.sh` you can run both the files.
+
+### Accessing MongoDB
+To verify that MongoDB is logging data, access the MongoDB command line with:
+
+`sudo docker exec -it mongo mongosh`
+
+From the MongoDB command line, you can run the following commands:
+- Switch to the logging database: `use kafka_real_time_data`
+- Show collections: `show collections`
+- Retrieve all logs from producer: `db.producer_logs.find()`
+- Retrieve all logs from consumer: `db.consumer_logs.find()`
+- Retrieve the latest log entry of producer: `db.producer_logs.find().sort({ _id: -1 }).limit(1)`
+Similarly you can do it for consumer too
+
+###### PS: You can change the environment varaibles for Mongo from .env file
