@@ -4,6 +4,8 @@ from datetime import datetime
 from db.mongo import get_consumer_collection, log_consumer_data
 from services import make_predictions
 import json
+import logging
+
 
 consumer = KafkaConsumer(
     'real-time-data',
@@ -21,6 +23,7 @@ async def process_data():
         prediction = make_predictions(review)
         await log_consumer_data(collection, review, prediction, consumer_timestamp, unique_id)
         # print(f"Review: {review}, Prediction: {prediction}, Producer Timestamp: {producer_timestamp}, Consumer Timestamp: {consumer_timestamp}, Unique ID: {unique_id}")
+        print("Data Consumed")
 
 if __name__ == "__main__":
     asyncio.run(process_data())

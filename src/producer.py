@@ -6,6 +6,8 @@ import asyncio
 import random
 import json
 import time
+import logging
+
 
 producer = KafkaProducer(
     bootstrap_servers='localhost:9092',
@@ -27,17 +29,16 @@ async def generate_data(file_path):
         for _ in range(batch_size):
             if index < len(df):
                 row = df.iloc[index]
-                review_data = {"review": row['review']}
                 unique_id = await generate_unique_id(collection)
                 timestamp = datetime.utcnow()
                 await log_producer_data(collection, unique_id, timestamp)
                 reviews.append({"review": row['review'], "producer_timestamp": timestamp.isoformat(), "unique_id": unique_id})
                 index += 1
 
-        # Send reviews to Kafka
         for review in reviews:
             producer.send('real-time-data', review)
-            print("The data is generated")
+        
+        print("Data Generated")
         time.sleep(random.uniform(1, 5))
 
 if __name__ == "__main__":
